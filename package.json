@@ -2,6 +2,10 @@
   "name": "sillytavernjs",
   "version": "1.0.0",
   "description": "A collection of custom JavaScript scripts and dictionary files for SillyTavern",
+  "main": "index.js",
+  "scripts": {
+    "test": "node examples/test-all.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/kayanorin/SillyTavernjs.git"
