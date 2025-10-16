@@ -1,455 +1,233 @@
-// main.js - 酒馆助手核心脚本
-// 文言字符替换与字典系统
-
-(function() {
-  'use strict';
-  
-  // ==================== 配置区 ====================
-  const CONFIG = {
-    // 字典文件URL（修改为你的实际URL）
-    dictionaryUrl: 'https://你的字典文件URL/dictionary.js',
+(async function() {
+    'use strict';
     
-    // 正则替换作用域
-    regexScope: 'ai', // 'ai' | 'user' | 'all'
+    const SCRIPT_NAME = 'VariantCharsTooltip';
+    const DICT_URL = 'https://cdn.jsdelivr.net/gh/kayanorin/SillyTavernjs/variant-chars-dict.js';
     
-    // 样式配置
-    highlightColor: '#e6f3ff',
-    highlightHoverColor: '#cce5ff',
-    popupZIndex: 10000
-  };
-  
-  // ==================== 全局变量 ====================
-  let dictionary = null;
-  let scanRegex = null;
-  let isInitialized = false;
-  
-  // ==================== 初始化 ====================
-  async function initialize() {
-    if (isInitialized) return;
+    let VARIANT_DICT = null;
+    let isProcessing = false;
     
-    console.log('[文言字典] 开始初始化...');
-    
-    // 1. 加载字典
-    await loadDictionary();
-    
-    if (!dictionary) {
-      console.error('[文言字典] 字典加载失败，系统未启动');
-      return;
+    // ============ 加载字典数据 ============
+    async function loadDictionary() {
+        try {
+            console.log(`[${SCRIPT_NAME}] 正在加载字典...`);
+            
+            const script = document.createElement('script');
+            script.src = DICT_URL + '?t=' + Date.now();
+            
+            await new Promise((resolve, reject) => {
+                script.onload = () => {
+                    // 等待一小段时间确保脚本执行完成
+                    setTimeout(resolve, 100);
+                };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+            
+            // 检查全局变量
+            if (window.VARIANT_DICT && Object.keys(window.VARIANT_DICT).length > 0) {
+                VARIANT_DICT = window.VARIANT_DICT;
+                console.log(`[${SCRIPT_NAME}] 字典加载成功，共 ${Object.keys(VARIANT_DICT).length} 个词条`);
+                return true;
+            } else {
+                throw new Error('字典变量为空或未定义');
+            }
+        } catch (error) {
+            console.error(`[${SCRIPT_NAME}] 字典加载失败:`, error);
+            
+            // 使用备用字典
+            VARIANT_DICT = {
+                "慊弃": { original: "嫌弃", explanation: "厌恶而不愿接近" },
+                "忮愱": { original: "嫉妒", explanation: "因别人比自己好而憎恨" },
+                "贪惏": { original: "贪婪", explanation: "贪得无厌" },
+                "虜隶": { original: "奴隶", explanation: "被奴役的人" }
+            };
+            console.log(`[${SCRIPT_NAME}] 使用备用字典，共 ${Object.keys(VARIANT_DICT).length} 个词条`);
+            return false;
+        }
     }
     
-    // 2. 创建酒馆正则规则
-    createTavernRegexRules();
-    
-    // 3. 构建扫描正则
-    buildScanRegex();
-    
-    // 4. 注册消息监听
-    registerMessageListener();
-    
-    // 5. 创建样式
-    injectStyles();
-    
-    isInitialized = true;
-    console.log('[文言字典] 初始化完成');
-  }
-  
-  // ==================== 字典加载 ====================
-  async function loadDictionary() {
-    try {
-      // 检查是否已经通过import加载
-      if (window.CharDictionary && window.CharDictionary._loaded) {
-        dictionary = window.CharDictionary;
-        console.log(`[文言字典] 字典已加载 v${dictionary._version}`);
-        return;
-      }
-      
-      // 动态加载脚本
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = CONFIG.dictionaryUrl;
-        script.onload = () => {
-          if (window.CharDictionary && window.CharDictionary._loaded) {
-            dictionary = window.CharDictionary;
-            resolve();
-          } else {
-            reject(new Error('字典文件格式错误'));
-          }
-        };
-        script.onerror = () => reject(new Error('字典文件加载失败'));
-        document.head.appendChild(script);
-      });
-      
-    } catch (error) {
-      console.error('[文言字典] 加载失败:', error);
+    // ============ 注入CSS样式 ============
+    function injectStyles() {
+        if ($('#variant-chars-tooltip-style').length > 0) return;
+        
+        $('<style id="variant-chars-tooltip-style">')
+            .text(`
+                .variant-char {
+                    position: relative;
+                    display: inline;
+                    cursor: help;
+                    color: #667eea;
+                    font-weight: 500;
+                    border-bottom: 1px dashed rgba(102, 126, 234, 0.5);
+                    transition: all 0.2s ease;
+                }
+                
+                .variant-char:hover {
+                    color: #5a67d8;
+                    border-bottom-color: #5a67d8;
+                }
+                
+                .variant-char-tooltip {
+                    position: absolute;
+                    bottom: calc(100% + 8px);
+                    left: 50%;
+                    transform: translateX(-50%);
+                    padding: 8px 12px;
+                    background: rgba(0, 0, 0, 0.92);
+                    color: #fff;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: normal;
+                    line-height: 1.4;
+                    white-space: nowrap;
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.2s ease, transform 0.2s ease;
+                    z-index: 10000;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                }
+                
+                .variant-char:hover .variant-char-tooltip {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(-2px);
+                }
+                
+                .variant-char-tooltip::after {
+                    content: '';
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 6px solid transparent;
+                    border-top-color: rgba(0, 0, 0, 0.92);
+                }
+                
+                .variant-tooltip-original {
+                    color: #fbbf24;
+                    font-weight: 600;
+                }
+                
+                .variant-tooltip-arrow {
+                    color: #9ca3af;
+                    margin: 0 4px;
+                }
+                
+                .variant-tooltip-explanation {
+                    color: #d1d5db;
+                    font-size: 12px;
+                    display: block;
+                    margin-top: 4px;
+                    padding-top: 4px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.2);
+                }
+            `)
+            .appendTo('head');
+        
+        console.log(`[${SCRIPT_NAME}] CSS样式已注入`);
     }
-  }
-  
-  // ==================== 酒馆正则规则生成 ====================
-  function createTavernRegexRules() {
-    if (!window.executeSlashCommands) {
-      console.warn('[文言字典] 未找到酒馆命令系统，跳过正则创建');
-      return;
+    
+    // ============ 生成正则表达式 ============
+    function createRegex() {
+        if (!VARIANT_DICT) return null;
+        
+        const words = Object.keys(VARIANT_DICT).sort((a, b) => b.length - a.length);
+        const escapedWords = words.map(word => 
+            word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        );
+        
+        return new RegExp(`(${escapedWords.join('|')})`, 'g');
     }
     
-    const rules = [];
-    
-    for (const [targetChar, data] of Object.entries(dictionary)) {
-      if (data.enableReplace && data.original) {
-        rules.push({
-          original: data.original,
-          target: targetChar
+    // ============ 处理消息文本 ============
+    function processMessages() {
+        if (isProcessing || !VARIANT_DICT) return;
+        
+        isProcessing = true;
+        let processedCount = 0;
+        const regex = createRegex();
+        
+        if (!regex) {
+            isProcessing = false;
+            return;
+        }
+        
+        $('.mes').each(function() {
+            const $message = $(this);
+            const $mesText = $message.find('.mes_text');
+            
+            if ($mesText.length === 0) return;
+            if ($mesText.attr('data-variant-tooltip-processed')) return;
+            
+            let html = $mesText.html();
+            if (!html) return;
+            
+            // 检查是否包含目标词
+            let hasMatch = false;
+            for (let word in VARIANT_DICT) {
+                if (html.includes(word)) {
+                    hasMatch = true;
+                    break;
+                }
+            }
+            
+            if (!hasMatch) return;
+            
+            // 替换为带tooltip的版本
+            const originalHtml = html;
+            html = html.replace(regex, function(match) {
+                const data = VARIANT_DICT[match];
+                if (!data) return match;
+                
+                // 使用简单的结构，避免嵌套问题
+                return `<span class="variant-char">${match}<span class="variant-char-tooltip"><span class="variant-tooltip-original">${data.original}</span><span class="variant-tooltip-arrow">←</span>${match}<span class="variant-tooltip-explanation">${data.explanation}</span></span></span>`;
+            });
+            
+            // 只有内容确实改变了才更新
+            if (html !== originalHtml) {
+                $mesText.html(html);
+                $mesText.attr('data-variant-tooltip-processed', 'true');
+                processedCount++;
+            }
         });
-      }
+        
+        if (processedCount > 0) {
+            console.log(`[${SCRIPT_NAME}] 已处理 ${processedCount} 条消息`);
+        }
+        
+        isProcessing = false;
     }
     
-    if (rules.length === 0) {
-      console.log('[文言字典] 没有需要替换的字符');
-      return;
-    }
-    
-    // 通过酒馆命令创建正则
-    // 注意：这里使用酒馆的正则系统，具体API可能需要根据实际情况调整
-    rules.forEach(rule => {
-      const scriptName = `文言替换_${rule.original}到${rule.target}`;
-      const regexPattern = rule.original;
-      const replacement = rule.target;
-      
-      // 构建酒馆正则命令
-      const command = `/regex-add name="${scriptName}" find="${regexPattern}" replace="${replacement}" scope="${CONFIG.regexScope}" enabled=on`;
-      
-      try {
-        window.executeSlashCommands(command);
-        console.log(`[文言字典] 已创建替换规则: ${rule.original} → ${rule.target}`);
-      } catch (error) {
-        console.error(`[文言字典] 创建规则失败:`, error);
-      }
-    });
-    
-    console.log(`[文言字典] 共创建 ${rules.length} 条替换规则`);
-  }
-  
-  // ==================== 扫描正则构建 ====================
-  function buildScanRegex() {
-    const chars = Object.keys(dictionary).filter(key => !key.startsWith('_'));
-    
-    if (chars.length === 0) {
-      console.warn('[文言字典] 字典为空');
-      return;
-    }
-    
-    // 创建匹配所有字典字符的正则
-    const pattern = chars.map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    scanRegex = new RegExp(`(${pattern})`, 'g');
-    
-    console.log(`[文言字典] 扫描正则已构建，监控 ${chars.length} 个字符`);
-  }
-  
-  // ==================== 消息监听 ====================
-  function registerMessageListener() {
-    // 监听酒馆消息渲染事件
-    // 注意：事件名称可能需要根据实际酒馆版本调整
-    const events = [
-      'CHARACTER_MESSAGE_RENDERED',
-      'USER_MESSAGE_RENDERED',
-      'message_rendered'
-    ];
-    
-    events.forEach(eventName => {
-      document.addEventListener(eventName, handleMessageRendered);
-    });
-    
-    // 使用 MutationObserver 作为后备方案
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === 1 && node.classList && 
-              (node.classList.contains('mes') || node.querySelector('.mes_text'))) {
-            processMessage(node);
-          }
+    // ============ 监听DOM变化 ============
+    function setupObserver() {
+        const observer = new MutationObserver(() => {
+            setTimeout(processMessages, 200);
         });
-      });
-    });
-    
-    const chatContainer = document.querySelector('#chat') || document.body;
-    observer.observe(chatContainer, {
-      childList: true,
-      subtree: true
-    });
-    
-    console.log('[文言字典] 消息监听已注册');
-  }
-  
-  function handleMessageRendered(event) {
-    const messageElement = event.detail?.messageElement || event.target;
-    if (messageElement) {
-      processMessage(messageElement);
-    }
-  }
-  
-  // ==================== 消息处理 ====================
-  function processMessage(messageElement) {
-    if (!scanRegex || !dictionary) return;
-    
-    // 查找消息文本容器
-    const textContainer = messageElement.querySelector('.mes_text') || 
-                         messageElement.querySelector('[class*="message"]') ||
-                         messageElement;
-    
-    if (!textContainer) return;
-    
-    // 避免重复处理
-    if (textContainer.dataset.dictProcessed === 'true') return;
-    
-    // 递归处理所有文本节点
-    processTextNodes(textContainer);
-    
-    // 标记为已处理
-    textContainer.dataset.dictProcessed = 'true';
-  }
-  
-  function processTextNodes(node) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent;
-      if (!text || !scanRegex.test(text)) return;
-      
-      // 重置正则
-      scanRegex.lastIndex = 0;
-      
-      // 替换文本节点
-      const span = document.createElement('span');
-      span.innerHTML = text.replace(scanRegex, (match) => {
-        return `<span class="dict-char" data-char="${match}" title="点击查看释义">${match}</span>`;
-      });
-      
-      node.parentNode.replaceChild(span, node);
-      
-    } else if (node.nodeType === Node.ELEMENT_NODE && 
-               !node.classList.contains('dict-char')) {
-      // 递归处理子节点，但跳过已标记的字符
-      Array.from(node.childNodes).forEach(child => processTextNodes(child));
-    }
-  }
-  
-  // ==================== 弹窗UI ====================
-  function showDictPopup(char, clickEvent) {
-    const data = dictionary[char];
-    if (!data) return;
-    
-    // 移除旧弹窗
-    const oldPopup = document.getElementById('dict-popup');
-    if (oldPopup) oldPopup.remove();
-    
-    // 创建弹窗
-    const popup = document.createElement('div');
-    popup.id = 'dict-popup';
-    popup.className = 'dict-popup';
-    
-    // 构建内容
-    let content = `
-      <div class="dict-popup-header">
-        <span class="dict-popup-char">${char}</span>
-        <button class="dict-popup-close" onclick="this.parentElement.parentElement.remove()">×</button>
-      </div>
-      <div class="dict-popup-body">
-    `;
-    
-    if (data.original) {
-      content += `<div class="dict-row"><span class="dict-label">对应:</span><span class="dict-value">${data.original}</span></div>`;
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        console.log(`[${SCRIPT_NAME}] DOM监听已启动`);
     }
     
-    content += `
-      <div class="dict-row"><span class="dict-label">释义:</span><span class="dict-value">${data.meaning}</span></div>
-    `;
-    
-    if (data.note) {
-      content += `<div class="dict-row"><span class="dict-label">说明:</span><span class="dict-value">${data.note}</span></div>`;
+    // ============ 初始化 ============
+    async function init() {
+        console.log(`[${SCRIPT_NAME}] 开始初始化...`);
+        
+        await loadDictionary();
+        injectStyles();
+        
+        $(document).ready(() => {
+            setTimeout(processMessages, 300);
+            setInterval(processMessages, 1500);
+            setupObserver();
+            
+            console.log(`[${SCRIPT_NAME}] 初始化完成！`);
+        });
     }
     
-    if (data.examples) {
-      content += `<div class="dict-row"><span class="dict-label">例词:</span><span class="dict-value">${data.examples}</span></div>`;
-    }
+    init();
     
-    content += `</div>`;
-    popup.innerHTML = content;
-    
-    // 定位弹窗
-    document.body.appendChild(popup);
-    
-    const rect = clickEvent.target.getBoundingClientRect();
-    const popupRect = popup.getBoundingClientRect();
-    
-    let left = rect.left + (rect.width / 2) - (popupRect.width / 2);
-    let top = rect.bottom + 8;
-    
-    // 边界检测
-    if (left < 10) left = 10;
-    if (left + popupRect.width > window.innerWidth - 10) {
-      left = window.innerWidth - popupRect.width - 10;
-    }
-    if (top + popupRect.height > window.innerHeight - 10) {
-      top = rect.top - popupRect.height - 8;
-    }
-    
-    popup.style.left = `${left}px`;
-    popup.style.top = `${top}px`;
-    
-    // 点击外部关闭
-    setTimeout(() => {
-      document.addEventListener('click', function closePopup(e) {
-        if (!popup.contains(e.target)) {
-          popup.remove();
-          document.removeEventListener('click', closePopup);
-        }
-      });
-    }, 0);
-  }
-  
-  // ==================== 事件代理 ====================
-  document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('dict-char')) {
-      e.preventDefault();
-      e.stopPropagation();
-      const char = e.target.dataset.char;
-      showDictPopup(char, e);
-    }
-  });
-  
-  // ==================== 样式注入 ====================
-  function injectStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
-      /* 字典字符样式 */
-      .dict-char {
-        background-color: ${CONFIG.highlightColor};
-        padding: 0 2px;
-        border-radius: 2px;
-        cursor: help;
-        transition: background-color 0.2s;
-        border-bottom: 1px dashed #4a90e2;
-      }
-      
-      .dict-char:hover {
-        background-color: ${CONFIG.highlightHoverColor};
-      }
-      
-      /* 弹窗容器 */
-      .dict-popup {
-        position: fixed;
-        min-width: 280px;
-        max-width: 400px;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: ${CONFIG.popupZIndex};
-        font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
-        animation: dict-popup-fadein 0.2s ease;
-      }
-      
-      @keyframes dict-popup-fadein {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      
-      /* 弹窗头部 */
-      .dict-popup-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 16px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 8px 8px 0 0;
-        color: white;
-      }
-      
-      .dict-popup-char {
-        font-size: 24px;
-        font-weight: bold;
-      }
-      
-      .dict-popup-close {
-        background: none;
-        border: none;
-        color: white;
-        font-size: 24px;
-        cursor: pointer;
-        padding: 0;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 4px;
-        transition: background 0.2s;
-      }
-      
-      .dict-popup-close:hover {
-        background: rgba(255,255,255,0.2);
-      }
-      
-      /* 弹窗主体 */
-      .dict-popup-body {
-        padding: 12px 16px;
-      }
-      
-      .dict-row {
-        margin-bottom: 8px;
-        line-height: 1.6;
-      }
-      
-      .dict-row:last-child {
-        margin-bottom: 0;
-      }
-      
-      .dict-label {
-        display: inline-block;
-        min-width: 50px;
-        font-weight: 600;
-        color: #666;
-      }
-      
-      .dict-value {
-        color: #333;
-      }
-      
-      /* 暗色主题适配 */
-      body.theme-dark .dict-popup {
-        background: #2d2d2d;
-        border-color: #444;
-        color: #e0e0e0;
-      }
-      
-      body.theme-dark .dict-label {
-        color: #aaa;
-      }
-      
-      body.theme-dark .dict-value {
-        color: #e0e0e0;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  // ==================== 启动 ====================
-  // 等待DOM加载完成
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initialize);
-  } else {
-    initialize();
-  }
-  
-  // 暴露全局接口（便于调试）
-  window.WenYanDict = {
-    version: '1.0.0',
-    reload: initialize,
-    getDictionary: () => dictionary,
-    getConfig: () => CONFIG
-  };
-  
 })();
