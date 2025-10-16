@@ -6,44 +6,89 @@
     
     let VARIANT_DICT = null;
     let isProcessing = false;
+    let initAttempts = 0;
+    const MAX_ATTEMPTS = 5;
+    
+    // ============ 备用字典（网络失败时使用）============
+    const FALLBACK_DICT = {
+        "慊弃": { original: "嫌弃", explanation: "厌恶而不愿接近" },
+        "忮愱": { original: "嫉妒", explanation: "因别人比自己好而憎恨" },
+        "贪惏": { original: "贪婪", explanation: "贪得无厌" },
+        "虜隶": { original: "奴隶", explanation: "被奴役的人" }
+    };
     
     // ============ 加载字典数据 ============
     async function loadDictionary() {
-        try {
-            console.log(`[${SCRIPT_NAME}] 正在加载字典...`);
+        return new Promise((resolve, reject) => {
+            console.log(`[${SCRIPT_NAME}] 正在加载字典... (尝试 ${initAttempts + 1}/${MAX_ATTEMPTS})`);
             
-            const script = document.createElement('script');
-            script.src = DICT_URL + '?t=' + Date.now();
-            
-            await new Promise((resolve, reject) => {
-                script.onload = () => {
-                    // 等待一小段时间确保脚本执行完成
-                    setTimeout(resolve, 100);
-                };
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-            
-            // 检查全局变量
+            // 如果已经存在，直接使用
             if (window.VARIANT_DICT && Object.keys(window.VARIANT_DICT).length > 0) {
-                VARIANT_DICT = window.VARIANT_DICT;
-                console.log(`[${SCRIPT_NAME}] 字典加载成功，共 ${Object.keys(VARIANT_DICT).length} 个词条`);
-                return true;
-            } else {
-                throw new Error('字典变量为空或未定义');
+                console.log(`[${SCRIPT_NAME}] 检测到已加载的字典`);
+                resolve(window.VARIANT_DICT);
+                return;
             }
-        } catch (error) {
-            console.error(`[${SCRIPT_NAME}] 字典加载失败:`, error);
             
-            // 使用备用字典
-            VARIANT_DICT = {
-                "慊弃": { original: "嫌弃", explanation: "厌恶而不愿接近" },
-                "忮愱": { original: "嫉妒", explanation: "因别人比自己好而憎恨" },
-                "贪惏": { original: "贪婪", explanation: "贪得无厌" },
-                "虜隶": { original: "奴隶", explanation: "被奴役的人" }
+            // 监听自定义事件
+            const loadHandler = (event) => {
+                console.log(`[${SCRIPT_NAME}] 字典加载完成，共 ${event.detail.count} 个词条`);
+                resolve(window.VARIANT_DICT);
             };
-            console.log(`[${SCRIPT_NAME}] 使用备用字典，共 ${Object.keys(VARIANT_DICT).length} 个词条`);
-            return false;
+            window.addEventListener('variantDictLoaded', loadHandler, { once: true });
+            
+            // 创建脚本标签
+            const script = document.createElement('script');
+            script.src = `${DICT_URL}?v=${Date.now()}`; // 防止缓存
+            script.async = true;
+            
+            // 超时处理
+            const timeoutId = setTimeout(() => {
+                window.removeEventListener('variantDictLoaded', loadHandler);
+                reject(new Error('字典加载超时'));
+            }, 5000); // 5秒超时
+            
+            script.onload = function() {
+                console.log(`[${SCRIPT_NAME}] 字典脚本已加载`);
+                // 再等待一下确保执行完成
+                setTimeout(() => {
+                    clearTimeout(timeoutId);
+                    if (window.VARIANT_DICT && Object.keys(window.VARIANT_DICT).length > 0) {
+                        window.removeEventListener('variantDictLoaded', loadHandler);
+                        resolve(window.VARIANT_DICT);
+                    }
+                }, 300);
+            };
+            
+            script.onerror = function() {
+                clearTimeout(timeoutId);
+                window.removeEventListener('variantDictLoaded', loadHandler);
+                reject(new Error('字典脚本加载失败'));
+            };
+            
+            document.head.appendChild(script);
+        });
+    }
+    
+    // ============ 初始化字典（带重试）============
+    async function initDictionary() {
+        while (initAttempts < MAX_ATTEMPTS) {
+            try {
+                VARIANT_DICT = await loadDictionary();
+                console.log(`[${SCRIPT_NAME}] 字典初始化成功，共 ${Object.keys(VARIANT_DICT).length} 个词条`);
+                return true;
+            } catch (error) {
+                initAttempts++;
+                console.warn(`[${SCRIPT_NAME}] 字典加载失败:`, error.message);
+                
+                if (initAttempts < MAX_ATTEMPTS) {
+                    console.log(`[${SCRIPT_NAME}] ${1000 * initAttempts}ms 后重试...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * initAttempts));
+                } else {
+                    console.error(`[${SCRIPT_NAME}] 字典加载失败，使用备用字典`);
+                    VARIANT_DICT = FALLBACK_DICT;
+                    return false;
+                }
+            }
         }
     }
     
@@ -70,27 +115,29 @@
                 
                 .variant-char-tooltip {
                     position: absolute;
-                    bottom: calc(100% + 8px);
+                    bottom: calc(100% + 10px);
                     left: 50%;
                     transform: translateX(-50%);
-                    padding: 8px 12px;
-                    background: rgba(0, 0, 0, 0.92);
+                    padding: 10px 14px;
+                    background: rgba(0, 0, 0, 0.95);
                     color: #fff;
                     border-radius: 6px;
                     font-size: 13px;
                     font-weight: normal;
-                    line-height: 1.4;
+                    line-height: 1.5;
                     white-space: nowrap;
                     opacity: 0;
+                    visibility: hidden;
                     pointer-events: none;
-                    transition: opacity 0.2s ease, transform 0.2s ease;
+                    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
                     z-index: 10000;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
                 }
                 
                 .variant-char:hover .variant-char-tooltip {
                     opacity: 1;
-                    transform: translateX(-50%) translateY(-2px);
+                    visibility: visible;
+                    transform: translateX(-50%) translateY(-3px);
                 }
                 
                 .variant-char-tooltip::after {
@@ -100,7 +147,12 @@
                     left: 50%;
                     transform: translateX(-50%);
                     border: 6px solid transparent;
-                    border-top-color: rgba(0, 0, 0, 0.92);
+                    border-top-color: rgba(0, 0, 0, 0.95);
+                }
+                
+                .variant-tooltip-line {
+                    display: block;
+                    text-align: center;
                 }
                 
                 .variant-tooltip-original {
@@ -110,15 +162,14 @@
                 
                 .variant-tooltip-arrow {
                     color: #9ca3af;
-                    margin: 0 4px;
+                    margin: 0 6px;
                 }
                 
                 .variant-tooltip-explanation {
                     color: #d1d5db;
                     font-size: 12px;
-                    display: block;
-                    margin-top: 4px;
-                    padding-top: 4px;
+                    margin-top: 6px;
+                    padding-top: 6px;
                     border-top: 1px solid rgba(255, 255, 255, 0.2);
                 }
             `)
@@ -179,11 +230,18 @@
                 const data = VARIANT_DICT[match];
                 if (!data) return match;
                 
-                // 使用简单的结构，避免嵌套问题
-                return `<span class="variant-char">${match}<span class="variant-char-tooltip"><span class="variant-tooltip-original">${data.original}</span><span class="variant-tooltip-arrow">←</span>${match}<span class="variant-tooltip-explanation">${data.explanation}</span></span></span>`;
+                const tooltipHtml = `
+                    <span class="variant-tooltip-line">
+                        <span class="variant-tooltip-original">${data.original}</span>
+                        <span class="variant-tooltip-arrow">←</span>
+                        ${match}
+                    </span>
+                    <span class="variant-tooltip-explanation">${data.explanation}</span>
+                `;
+                
+                return `<span class="variant-char">${match}<span class="variant-char-tooltip">${tooltipHtml}</span></span>`;
             });
             
-            // 只有内容确实改变了才更新
             if (html !== originalHtml) {
                 $mesText.html(html);
                 $mesText.attr('data-variant-tooltip-processed', 'true');
@@ -201,7 +259,7 @@
     // ============ 监听DOM变化 ============
     function setupObserver() {
         const observer = new MutationObserver(() => {
-            setTimeout(processMessages, 200);
+            setTimeout(processMessages, 250);
         });
         
         observer.observe(document.body, {
@@ -212,22 +270,32 @@
         console.log(`[${SCRIPT_NAME}] DOM监听已启动`);
     }
     
-    // ============ 初始化 ============
+    // ============ 主初始化流程 ============
     async function init() {
-        console.log(`[${SCRIPT_NAME}] 开始初始化...`);
+        console.log(`[${SCRIPT_NAME}] ======== 开始初始化 ========`);
         
-        await loadDictionary();
+        // 1. 先注入样式
         injectStyles();
         
+        // 2. 加载字典（带重试）
+        await initDictionary();
+        
+        // 3. 等待DOM就绪
         $(document).ready(() => {
-            setTimeout(processMessages, 300);
-            setInterval(processMessages, 1500);
+            // 4. 首次处理
+            setTimeout(processMessages, 500);
+            
+            // 5. 定时处理（备用）
+            setInterval(processMessages, 2000);
+            
+            // 6. 设置监听
             setupObserver();
             
-            console.log(`[${SCRIPT_NAME}] 初始化完成！`);
+            console.log(`[${SCRIPT_NAME}] ======== 初始化完成 ========`);
         });
     }
     
+    // 启动
     init();
     
 })();

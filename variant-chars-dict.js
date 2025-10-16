@@ -1,4 +1,7 @@
 (function() {
+    'use strict';
+    
+    // 使用立即执行函数确保变量立即可用
     window.VARIANT_DICT = {
         "慊弃": { original: "嫌弃", explanation: "厌恶而不愿接近" },
         "忮愱": { original: "嫉妒", explanation: "因别人比自己好而憎恨" },
@@ -11,5 +14,11 @@
         "虜隶": { original: "奴隶", explanation: "被奴役的人" },
         "螙药": { original: "毒药", explanation: "有毒的药物" }
     };
-    console.log('[VariantDict] 字典已加载到 window.VARIANT_DICT');
+    
+    // 触发自定义事件通知加载完成
+    window.dispatchEvent(new CustomEvent('variantDictLoaded', {
+        detail: { count: Object.keys(window.VARIANT_DICT).length }
+    }));
+    
+    console.log('[VariantDict] 字典已加载，共', Object.keys(window.VARIANT_DICT).length, '个词条');
 })();
