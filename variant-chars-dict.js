@@ -1,6 +1,5 @@
-// 异体字/古字词典数据
-const VARIANT_DICT = {
-    // 格式: "显示的字/词": { original: "原始字/词", explanation: "解释" }
+// 全局变量声明 - 确保可以被访问
+window.VARIANT_DICT = {
     "慊弃": {
         original: "嫌弃",
         explanation: "厌恶而不愿接近"
@@ -43,7 +42,4 @@ const VARIANT_DICT = {
     }
 };
 
-// 导出（如果使用模块系统）
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = VARIANT_DICT;
-}
+console.log('[VariantDict] 字典已加载，共', Object.keys(window.VARIANT_DICT).length, '个词条');
