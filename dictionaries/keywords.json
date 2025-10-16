@@ -1,0 +1,27 @@
+{
+  "greetings": {
+    "hello": "Hello! How can I assist you today?",
+    "hi": "Hi there! What would you like to talk about?",
+    "hey": "Hey! How are you doing?",
+    "good morning": "Good morning! Hope you're having a great day!",
+    "good evening": "Good evening! How can I help you?"
+  },
+  "farewells": {
+    "goodbye": "Goodbye! Take care!",
+    "bye": "Bye! See you later!",
+    "see you": "See you! Have a great day!",
+    "good night": "Good night! Sleep well!"
+  },
+  "affirmations": {
+    "yes": "Understood!",
+    "ok": "Got it!",
+    "sure": "Absolutely!",
+    "alright": "Perfect!"
+  },
+  "negations": {
+    "no": "I understand.",
+    "nope": "No problem.",
+    "not really": "That's okay.",
+    "maybe later": "Sure, whenever you're ready."
+  }
+}

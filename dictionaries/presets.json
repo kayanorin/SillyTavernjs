@@ -1,0 +1,48 @@
+{
+  "personalities": {
+    "friendly": {
+      "name": "Friendly",
+      "description": "A warm and welcoming personality",
+      "traits": ["kind", "helpful", "empathetic"],
+      "tone": "casual and warm"
+    },
+    "professional": {
+      "name": "Professional",
+      "description": "A formal and businesslike personality",
+      "traits": ["efficient", "precise", "respectful"],
+      "tone": "formal and polite"
+    },
+    "playful": {
+      "name": "Playful",
+      "description": "A fun and lighthearted personality",
+      "traits": ["humorous", "creative", "spontaneous"],
+      "tone": "casual and fun"
+    },
+    "wise": {
+      "name": "Wise",
+      "description": "A thoughtful and knowledgeable personality",
+      "traits": ["patient", "insightful", "calm"],
+      "tone": "thoughtful and measured"
+    }
+  },
+  "scenarios": {
+    "adventure": {
+      "name": "Adventure",
+      "description": "Embark on exciting quests and journeys",
+      "setting": "fantasy world",
+      "mood": "exciting"
+    },
+    "mystery": {
+      "name": "Mystery",
+      "description": "Solve puzzles and uncover secrets",
+      "setting": "detective noir",
+      "mood": "suspenseful"
+    },
+    "slice_of_life": {
+      "name": "Slice of Life",
+      "description": "Everyday moments and conversations",
+      "setting": "modern day",
+      "mood": "relaxed"
+    }
+  }
+}

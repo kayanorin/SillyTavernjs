@@ -1,0 +1,38 @@
+{
+  "messageTemplates": {
+    "greeting": "Hello {{name}}! {{greeting_message}}",
+    "introduction": "I'm {{character_name}}, {{description}}. Nice to meet you!",
+    "question": "I was wondering, {{question}}",
+    "response": "{{acknowledgment}} {{answer}}",
+    "farewell": "{{farewell_message}} Take care, {{name}}!"
+  },
+  "narrativeTemplates": {
+    "action": "*{{character_name}} {{action}}*",
+    "emotion": "*{{character_name}} feels {{emotion}}*",
+    "thought": "*{{character_name}} thinks: \"{{thought}}\"*",
+    "description": "*The {{subject}} {{description}}*"
+  },
+  "responseVariations": {
+    "acknowledgments": [
+      "I see",
+      "I understand",
+      "That makes sense",
+      "I hear you",
+      "Got it"
+    ],
+    "transitions": [
+      "Speaking of which",
+      "By the way",
+      "On a related note",
+      "That reminds me",
+      "Now that you mention it"
+    ],
+    "fillers": [
+      "Well",
+      "So",
+      "Hmm",
+      "You know",
+      "Actually"
+    ]
+  }
+}
